@@ -96,11 +96,12 @@ Traditional DA methods often face a trade-off between computational cost and acc
 
 Training configurations can be set up in config/experiment.yaml. Notice the following paths need to be set by the user.
 
+```
 exp_dir		# directory path to store training checkpoints and other output	
 train_data_path	# directory path to store dataset for train
 valid_data_path	# directory path to store dataset for valid
 test_data_path	# directory path to store dataset for test
-  
+```
   
 An example launch script for distributed data parallel training is provided:
 
