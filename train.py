@@ -715,8 +715,8 @@ if __name__ == "__main__":
     params["name"] = str(args.run_num)
 
     # wandb setting
-    params["entity"] = "xiangyanfei212"  # team name
-    params["project"] = "AI_DA"  # project name
+    params["entity"] = "your entity"  # team name
+    params["project"] = "your project"  # project name
     params["group"] = args.wandb_group + "_" + args.net_config
 
     # if world_rank == 0:
