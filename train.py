@@ -96,11 +96,14 @@ class Trainer:
 
         # %% optimizer
         if params.optimizer_type == "FusedAdam":
-            self.optimizer = optimizers.FusedAdam(self.model.parameters(), lr=params.lr)
+            self.optimizer = optimizers.FusedAdam(
+                self.model.parameters(), lr=params.lr)
         elif params.optimizer_type == "Adam":
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=params.lr)
+            self.optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=params.lr)
         elif params.optimizer_type == "AdamW":
-            self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=params.lr)
+            self.optimizer = torch.optim.AdamW(
+                self.model.parameters(), lr=params.lr)
         else:
             raise Exception("not implemented")
 
@@ -140,16 +143,15 @@ class Trainer:
 
         # %% Resume train
         if params.resuming:
-            print("Loading checkpoint %s" % params.best_checkpoint_path)
+            print(f"Loading checkpoint from {params.best_checkpoint_path}")
             self.restore_checkpoint(params.best_checkpoint_path)
 
         self.epoch = self.startEpoch
 
         if params.log_to_screen:
             print(
-                "Number of trainable model parameters: {}".format(
-                    self.count_parameters()
-                )
+                f"Number of trainable model parameters: \
+                {self.count_parameters()}"
             )
 
         if params.log_to_wandb:
@@ -246,21 +248,29 @@ class Trainer:
             )  # fill input with 0 where field_mask is True.
 
         # type 1 loss
-        loss_field = F.mse_loss(pre_field, tar_field)
-        loss_field_channel_wise = F.mse_loss(pre_field, tar_field, reduction="none")
-        loss_field_channel_wise = torch.mean(loss_field_channel_wise, dim=(0, 2, 3))
+        loss_field = F.mse_loss(
+            pre_field, tar_field)
+        loss_field_channel_wise = F.mse_loss(
+            pre_field, tar_field, reduction="none")
+        loss_field_channel_wise = torch.mean(
+            loss_field_channel_wise, dim=(0, 2, 3))
 
         # type 2 loss
-        loss_field_obs = F.mse_loss(pre_field, tar_field_obs)
+        loss_field_obs = F.mse_loss(
+            pre_field, tar_field_obs)
 
         # type 3 loss
         pre_field = torch.masked_fill(
             input=pre_field, mask=~obs_tar_mask, value=0
         )  # fill input with 0 where mask is True.
-        tar_obs = torch.masked_fill(input=tar_obs, mask=~obs_tar_mask, value=0)
-        loss_obs = F.mse_loss(pre_field, tar_obs)
-        loss_obs_channel_wise = F.mse_loss(pre_field, tar_obs, reduction="none")
-        loss_obs_channel_wise = torch.mean(loss_obs_channel_wise, dim=(0, 2, 3))
+        tar_obs = torch.masked_fill(
+            input=tar_obs, mask=~obs_tar_mask, value=0)
+        loss_obs = F.mse_loss(
+            pre_field, tar_obs)
+        loss_obs_channel_wise = F.mse_loss(
+            pre_field, tar_obs, reduction="none")
+        loss_obs_channel_wise = torch.mean(
+            loss_obs_channel_wise, dim=(0, 2, 3))
 
         return {
             "loss_field": loss_field,
@@ -328,8 +338,10 @@ class Trainer:
                 inp = inp.to(self.device, dtype=torch.float)
                 inp_hrrr = inp_hrrr.to(self.device, dtype=torch.float)
                 target_field = target_field.to(self.device, dtype=torch.float)
-                target_obs = target_obs.to(self.device, dtype=torch.float)
-                target_field_obs = target_field_obs.to(self.device, dtype=torch.float)
+                target_obs = target_obs.to(
+                    self.device, dtype=torch.float)
+                target_field_obs = target_field_obs.to(
+                    self.device, dtype=torch.float)
                 field_mask = torch.as_tensor(
                     field_mask, dtype=torch.bool, device=self.device
                 )
@@ -348,7 +360,7 @@ class Trainer:
                     pre_field=gen,
                     tar_field=target_field,
                     tar_obs=target_obs,
-                    tar_field_obs=target_field_obs,  # combination of analysis and observations
+                    tar_field_obs=target_field_obs,
                     field_mask=field_mask,
                     obs_tar_mask=obs_tar_mask,
                 )
@@ -396,10 +408,10 @@ class Trainer:
             "loss_field_obs": loss_field_obs / steps_in_one_epoch,
         }
         for i_, var_ in enumerate(self.params.target_vars):
-            logs[f"loss_field_{var_}"] = (
-                loss_field_channel_wise[i_] / steps_in_one_epoch
-            )
-            logs[f"loss_obs_{var_}"] = loss_obs_channel_wise[i_] / steps_in_one_epoch
+            tmp_var_1 = loss_obs_channel_wise[i_] / steps_in_one_epoch
+            tmp_var_2 = loss_field_channel_wise[i_] / steps_in_one_epoch
+            logs[f"loss_obs_{var_}"] = tmp_var_1
+            logs[f"loss_field_{var_}"] = tmp_var_2
 
         if dist.is_initialized():
             for key in sorted(logs.keys()):
@@ -456,18 +468,26 @@ class Trainer:
                         obs_tar_mask,
                     ) = data
 
-                inp = inp.to(self.device, dtype=torch.float)
-                inp_hrrr = inp_hrrr.to(self.device, dtype=torch.float)
-                target_field = target_field.to(self.device, dtype=torch.float)
-                target_obs = target_obs.to(self.device, dtype=torch.float)
-                target_field_obs = target_field_obs.to(self.device, dtype=torch.float)
-                field_mask = field_mask.to(self.device, dtype=torch.bool)
-                obs_tar_mask = obs_tar_mask.to(self.device, dtype=torch.bool)
+                inp = inp.to(
+                    self.device, dtype=torch.float)
+                inp_hrrr = inp_hrrr.to(
+                    self.device, dtype=torch.float)
+                target_field = target_field.to(
+                    self.device, dtype=torch.float)
+                target_obs = target_obs.to(
+                    self.device, dtype=torch.float)
+                target_field_obs = target_field_obs.to(
+                    self.device, dtype=torch.float)
+                field_mask = field_mask.to(
+                    self.device, dtype=torch.bool)
+                obs_tar_mask = obs_tar_mask.to(
+                    self.device, dtype=torch.bool)
 
                 if self.params.nettype == "EncDec":
                     gen = self.model(inp)
                 if self.params.nettype == "EncDec_two_encoder":
-                    inp_sate = inp_sate.to(self.device, dtype=torch.float)
+                    inp_sate = inp_sate.to(
+                        self.device, dtype=torch.float)
                     gen = self.model(inp, inp_sate)
                 gen.to(self.device, dtype=torch.float)
 
@@ -475,7 +495,7 @@ class Trainer:
                     pre_field=gen,
                     tar_field=target_field,
                     tar_obs=target_obs,
-                    tar_field_obs=target_field_obs,  # combination of analysis and observations
+                    tar_field_obs=target_field_obs,
                     field_mask=field_mask,
                     obs_tar_mask=obs_tar_mask,
                 )
@@ -551,7 +571,8 @@ class Trainer:
 
     def restore_checkpoint(self, checkpoint_path):
         checkpoint = torch.load(
-            checkpoint_path, map_location="cuda:{}".format(self.params.local_rank)
+            checkpoint_path,
+            map_location="cuda:{}".format(self.params.local_rank)
         )
         try:
             self.model.load_state_dict(checkpoint["model_state"])
@@ -611,12 +632,19 @@ if __name__ == "__main__":
 
     if args.resume:
         params = YParams(
-            os.path.join(args.exp_dir, args.net_config, args.run_num, "config.yaml"),
+            os.path.join(
+                args.exp_dir,
+                args.net_config,
+                args.run_num,
+                "config.yaml"),
             args.net_config,
             False,
         )
     else:
-        params = YParams(os.path.abspath(args.yaml_config), args.net_config, False)
+        params = YParams(
+            os.path.abspath(args.yaml_config),
+            args.net_config,
+            False)
 
     params["target"] = args.target
     params["hold_out_obs_ratio"] = args.hold_out_obs_ratio
@@ -633,7 +661,8 @@ if __name__ == "__main__":
     if args.device == "GPU":
         print("Initialize distributed process group...")
         torch.distributed.init_process_group(
-            backend="nccl", timeout=datetime.timedelta(seconds=5400)
+            backend="nccl",
+            timeout=datetime.timedelta(seconds=5400)
         )
         local_rank = int(os.environ["LOCAL_RANK"])
         torch.cuda.set_device(local_rank)
@@ -655,21 +684,28 @@ if __name__ == "__main__":
     params["enable_amp"] = args.enable_amp
 
     # Set up directory
-    expDir = os.path.join(args.exp_dir, args.net_config, str(args.run_num))
+    expDir = os.path.join(
+        args.exp_dir,
+        args.net_config,
+        str(args.run_num))
 
     # start training
     if (not args.resume) and (
         (world_rank == 0 and args.device == "GPU") or args.device == "CPU"
     ):
         os.makedirs(expDir, exist_ok=True)
-        os.makedirs(os.path.join(expDir, "training_checkpoints"), exist_ok=True)
-        copyfile(os.path.abspath(args.yaml_config), os.path.join(expDir, "config.yaml"))
+        os.makedirs(
+            os.path.join(expDir, "training_checkpoints"),
+            exist_ok=True)
+        copyfile(
+            os.path.abspath(args.yaml_config),
+            os.path.join(expDir, "config.yaml"))
 
     params["experiment_dir"] = os.path.abspath(expDir)
-    params["checkpoint_path"] = os.path.join(expDir, "training_checkpoints", "ckpt.tar")
+    params["checkpoint_path"] = os.path.join(
+        expDir, "training_checkpoints", "ckpt.tar")
     params["best_checkpoint_path"] = os.path.join(
-        expDir, "training_checkpoints", "best_ckpt.tar"
-    )
+        expDir, "training_checkpoints", "best_ckpt.tar")
 
     # Do not comment this line out please:
     args.resuming = True if os.path.isfile(params.checkpoint_path) else False
@@ -679,12 +715,14 @@ if __name__ == "__main__":
     params["name"] = str(args.run_num)
 
     # wandb setting
-    params["entity"] = "your_team_name"  # team name
-    params["project"] = "your_project_name"  # project name
+    params["entity"] = "xiangyanfei212"  # team name
+    params["project"] = "AI_DA"  # project name
     params["group"] = args.wandb_group + "_" + args.net_config
 
     # if world_rank == 0:
-    log_to_file(logger_name=None, log_filename=os.path.join(expDir, "train.log"))
+    log_to_file(
+        logger_name=None,
+        log_filename=os.path.join(expDir, "train.log"))
     params.log()
 
     params["log_to_wandb"] = (world_rank == 0) and params["log_to_wandb"]
