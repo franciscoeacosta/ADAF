@@ -89,7 +89,7 @@ Traditional DA methods often face a trade-off between computational cost and acc
 
   ```
   model_weights/
-  │   model_trained.ckpt
+  │   best_ckpt.tar
   ```
 
 ## Train
@@ -147,7 +147,7 @@ In order to run ADAF in inference mode you will need to have the following files
 
 2. The inference script (inference.py)
 
-3. The model weights hosted at Trained Model Weights。 (./model_weights/model_trained.ckpt)
+3. The model weights hosted at Trained Model Weights (./model_weights/model_trained.ckpt)
 
 4. The pre-computed normalization statistics (./data/stats.csv)
 
@@ -179,4 +179,16 @@ nohup python -u inference.py \
 3. Tan, B., Dellomo, J., Wolfe, R. & Reth, A. GOES-16 and GOES-17 ABI INR assessment. in Earth Observing Systems XXIV vol. 11127 290–301 (SPIE, 2019).
 4. Hersbach, H. et al. ERA5 monthly averaged data on single levels from 1979 to present. Copernicus Climate Change Service (C3S) Climate Data Store (CDS) 10, 252–266 (2019).
 5. Pondeca, M. S. F. V. D. et al. The Real-Time Mesoscale Analysis at NOAA’s National Centers for Environmental Prediction: Current Status and Development. Weather and Forecasting 26, 593–612 (2011).
+```
+
+If you find this work useful, cite it using:
+
+```
+@article{xiang2024ADAF,
+      title={ADAF: An Artificial Intelligence Data Assimilation Framework for Weather Forecasting}, 
+      author={Yanfei Xiang and Weixin Jin and Haiyu Dong and Mingliang Bai and Zuliang Fang and Pengcheng Zhao and Hongyu Sun and Kit Thambiratnam and Qi Zhang and Xiaomeng Huang},
+      year={2024},
+      journal={arXiv preprint arXiv:2411.16807},
+      url={https://arxiv.org/abs/2411.16807}, 
+}
 ```
