@@ -92,6 +92,53 @@ Traditional DA methods often face a trade-off between computational cost and acc
   │   model_trained.ckpt
   ```
 
+## Train
+
+Training configurations can be set up in config/experiment.yaml. Notice the following paths need to be set by the user.
+
+exp_dir		# directory path to store training checkpoints and other output	
+train_data_path	# directory path to store dataset for train
+valid_data_path	# directory path to store dataset for valid
+test_data_path	# directory path to store dataset for test
+  
+  
+An example launch script for distributed data parallel training is provided:
+
+
+```shell
+run_num=$(date "+%Y%m%d-%H%M%S")
+resume=False
+
+exp_dir='./exp/'
+wandb_group='ADAF'
+
+net_config='EncDec'  
+export CUDA_VISIBLE_DEVICES='4,5,6,7'
+
+nohup python -m torch.distributed.launch \
+    --master_port=26500 \
+    --standalone \
+    --nproc_per_node=4 \
+    --nnodes=1 \
+    02_train.py \
+    --hold_out_obs_ratio=0.5 \
+    --lr=0.0002 \
+    --lr_reduce_factor=0.8 \
+    --target='analysis_obs' \
+    --max_epochs=2000 \
+    --exp_dir='./exp/' \
+    --yaml_config='./config/experiment.yaml' \
+    --net_config='EncDec' \
+    --resume=False \
+    --run_num=${run_num} \
+    --batch_size=16 \
+    --wandb_group='ADAF'  \
+    --device='GPU' \
+    --wandb_api_key='your wandb api key' \
+    > logs/train_${net_config}_${run_num}.log 2>&1 &
+
+```
+
 ## Inference
 In order to run ADAF in inference mode you will need to have the following files on hand.
 
