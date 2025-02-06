@@ -11,13 +11,11 @@ import xarray as xr
 
 from math import sqrt
 from icecream import ic
-from str2bool import str2bool
 from collections import OrderedDict
 from sklearn.metrics import mean_squared_error
 
 from utils.logging_utils import config_logger, log_to_file
 from utils.YParams import YParams
-from utils.read_txt import read_lines_from_file
 
 config_logger()
 
@@ -52,7 +50,6 @@ def load_model(model, params, checkpoint_file):
 
 
 def setup(params):
-
     # device init
     if torch.cuda.is_available():
         device = torch.cuda.current_device()
@@ -72,6 +69,8 @@ def setup(params):
 
     files_paths = glob.glob(params.test_data_path + "/*.nc")
     files_paths.sort()
+
+    inference_times = [os.path.basename(f).replace(".nc", "") for f in files_paths]
 
     return files_paths, inference_times, model
 
@@ -127,11 +126,10 @@ def min_max_norm_ignore_extreme_fill_nan(data, vmin, vmax):
 
     return data
 
-def reverse_norm(params, data, variable_names):
 
-    stats_file = os.path.join(
-        params.data_path,
-        f"stats_{params.norm_type}.csv")
+def reverse_norm(params, data, variable_names):
+    # stats_file = os.path.join(params.data_path, f"stats_{params.norm_type}.csv")
+    stats_file = os.path.join(params.data_path, "stats.csv")
     stats = pd.read_csv(stats_file, index_col=0)
 
     # for vi, var in enumerate(params.field_tar_vars):
@@ -212,21 +210,18 @@ def inference(
 
     with torch.no_grad():
         for f, analysis_time_str in zip(test_data_file_paths, inference_times):
-            analysis_time = datetime.datetime.strptime(
-                analysis_time_str, "%Y-%m-%d_%H")
+            analysis_time = datetime.datetime.strptime(analysis_time_str, "%Y-%m-%d_%H")
             logging.info("-----------------------------------------")
             logging.info(f"Analysis time: {analysis_time_str}")
             logging.info(f"Reading {f}")
 
-            out_file = os.path.join(
-                out_dir, analysis_time_str + ".nc")
+            out_file = os.path.join(out_dir, analysis_time_str + ".nc")
 
             if not os.path.exists(f):
                 logging.info(f"{f} not exists, skip!")
                 continue
 
-            data = read_sample_file_and_norm_input(
-                params, f, hold_out_obs_ratio)
+            data = read_sample_file_and_norm_input(params, f, hold_out_obs_ratio)
             (
                 inp,  # normed
                 inp_sate_norm,  # normed
@@ -240,8 +235,7 @@ def inference(
                 lon,
             ) = data
 
-            field_target = reverse_norm(
-                params, field_target, params.field_tar_vars)
+            field_target = reverse_norm(params, field_target, params.field_tar_vars)
             # mask the region out of range, after reverse normalization
             field_target = np.where(
                 mask, field_target, np.nan
@@ -254,8 +248,7 @@ def inference(
             hold_out_obs = np.where(
                 hold_out_obs == 0, np.nan, hold_out_obs
             )  # fill 0 with nan before normalization reversing
-            hold_out_obs = reverse_norm(
-                params, hold_out_obs, params.inp_obs_vars)
+            hold_out_obs = reverse_norm(params, hold_out_obs, params.inp_obs_vars)
 
             inp_obs_for_eval = np.where(
                 inp_obs_for_eval == 0, np.nan, inp_obs_for_eval
@@ -271,11 +264,9 @@ def inference(
             inp_obs_for_eval[q_idx] = inp_obs_for_eval[q_idx] * 1000
             bg_hrrr[q_idx] = bg_hrrr[q_idx] * 1000
 
-            inp = torch.tensor(inp[np.newaxis, :, :, :]).to(
-                device, dtype=torch.float)
-            inp_sate_norm = torch.tensor(
-                inp_sate_norm[np.newaxis, :, :, :, :]).to(
-                    device, dtype=torch.float
+            inp = torch.tensor(inp[np.newaxis, :, :, :]).to(device, dtype=torch.float)
+            inp_sate_norm = torch.tensor(inp_sate_norm[np.newaxis, :, :, :, :]).to(
+                device, dtype=torch.float
             )
 
             gen_ensembles = []
@@ -287,8 +278,7 @@ def inference(
 
                 if params.nettype == "EncDec":
                     inp_sate_norm = torch.reshape(
-                        inp_sate_norm,
-                        (1, -1, params.img_size_y, params.img_size_x)
+                        inp_sate_norm, (1, -1, params.img_size_y, params.img_size_x)
                     )
                     inp = torch.concat((inp, inp_sate_norm), 1)
                     gen = model(inp)
@@ -298,8 +288,7 @@ def inference(
                 print(f"inference time: {time.time() - start}")
 
                 if params.learn_residual:
-                    gen = np.squeeze(
-                        gen.detach().cpu().numpy()) + inp_hrrr_norm
+                    gen = np.squeeze(gen.detach().cpu().numpy()) + inp_hrrr_norm
 
                 # reverse normalization
                 gen = reverse_norm(params, gen, params.field_tar_vars)
@@ -319,28 +308,20 @@ def inference(
                 logging.info(f"{tar_var}:")
 
                 # %% compare with hold-out observation
-                obs_hold_obs_var = hold_out_obs[vi][
-                    ~np.isnan(hold_out_obs[vi])]
+                obs_hold_obs_var = hold_out_obs[vi][~np.isnan(hold_out_obs[vi])]
                 if len(obs_hold_obs_var) == 0:
                     print("No hold out obs, continue!")
                     continue
-                bg_hrrr_hold_obs = bg_hrrr[vi][
-                    ~np.isnan(hold_out_obs[vi])]
-                ai_gen_hold_obs = gen_ensembles[0, vi][
-                    ~np.isnan(hold_out_obs[vi])]
-                obs_hold_obs_var = np.nan_to_num(
-                    obs_hold_obs_var, nan=0)
-                bg_hrrr_hold_obs = np.nan_to_num(
-                    bg_hrrr_hold_obs, nan=0)
-                ai_gen_hold_obs = np.nan_to_num(
-                    ai_gen_hold_obs, nan=0)
+                bg_hrrr_hold_obs = bg_hrrr[vi][~np.isnan(hold_out_obs[vi])]
+                ai_gen_hold_obs = gen_ensembles[0, vi][~np.isnan(hold_out_obs[vi])]
+                obs_hold_obs_var = np.nan_to_num(obs_hold_obs_var, nan=0)
+                bg_hrrr_hold_obs = np.nan_to_num(bg_hrrr_hold_obs, nan=0)
+                ai_gen_hold_obs = np.nan_to_num(ai_gen_hold_obs, nan=0)
                 rmse_ai_hold_obs = round(
-                    sqrt(mean_squared_error(
-                        obs_hold_obs_var, ai_gen_hold_obs)), 3
+                    sqrt(mean_squared_error(obs_hold_obs_var, ai_gen_hold_obs)), 3
                 )
                 rmse_bg_hold_obs = round(
-                    sqrt(mean_squared_error(
-                        obs_hold_obs_var, bg_hrrr_hold_obs)), 3
+                    sqrt(mean_squared_error(obs_hold_obs_var, bg_hrrr_hold_obs)), 3
                 )
                 logging.info(f"rmse_ai_hold_obs={rmse_ai_hold_obs}")
                 logging.info(f"rmse_bg_hold_obs={rmse_bg_hold_obs}")
@@ -349,23 +330,16 @@ def inference(
                 inp_obs_for_eval_var = inp_obs_for_eval[vi][
                     ~np.isnan(inp_obs_for_eval[vi])
                 ]
-                bg_hrrr_inp_obs = bg_hrrr[vi][
-                    ~np.isnan(inp_obs_for_eval[vi])]
-                ai_gen_inp_obs = gen_ensembles[0, vi][
-                    ~np.isnan(inp_obs_for_eval[vi])]
-                inp_obs_for_eval_var = np.nan_to_num(
-                    inp_obs_for_eval_var, nan=0)
-                bg_hrrr_inp_obs = np.nan_to_num(
-                    bg_hrrr_inp_obs, nan=0)
-                ai_gen_inp_obs = np.nan_to_num(
-                    ai_gen_inp_obs, nan=0)
+                bg_hrrr_inp_obs = bg_hrrr[vi][~np.isnan(inp_obs_for_eval[vi])]
+                ai_gen_inp_obs = gen_ensembles[0, vi][~np.isnan(inp_obs_for_eval[vi])]
+                inp_obs_for_eval_var = np.nan_to_num(inp_obs_for_eval_var, nan=0)
+                bg_hrrr_inp_obs = np.nan_to_num(bg_hrrr_inp_obs, nan=0)
+                ai_gen_inp_obs = np.nan_to_num(ai_gen_inp_obs, nan=0)
                 rmse_ai_inp_obs = round(
-                    sqrt(mean_squared_error(
-                        inp_obs_for_eval_var, ai_gen_inp_obs)), 3
+                    sqrt(mean_squared_error(inp_obs_for_eval_var, ai_gen_inp_obs)), 3
                 )
                 rmse_bg_inp_obs = round(
-                    sqrt(mean_squared_error(
-                        inp_obs_for_eval_var, bg_hrrr_inp_obs)), 3
+                    sqrt(mean_squared_error(inp_obs_for_eval_var, bg_hrrr_inp_obs)), 3
                 )
                 logging.info(f"rmse_ai_inp_obs={rmse_ai_inp_obs}")
                 logging.info(f"rmse_bg_inp_obs={rmse_bg_inp_obs}")
@@ -427,6 +401,7 @@ def inference(
                 lon=lon,
                 lat=lat,
                 mask=mask,
+                params=params,
             )
 
 
@@ -442,8 +417,8 @@ def save_output(
     lat: np.array,
     mask: np.array,
     analysis_time: str,
+    params: dict,
 ):
-
     ic(
         lon.shape,
         lat.shape,
@@ -474,14 +449,10 @@ def save_output(
             #     ("ensemble_num", "lat", "lon"),
             #     AI_gen_ensembles[:, 4],
             # ),
-            f"hold_out_obs_{variable_names[0]}": (
-                ("lat", "lon"), hold_out_obs[0]),
-            f"hold_out_obs_{variable_names[1]}": (
-                ("lat", "lon"), hold_out_obs[1]),
-            f"hold_out_obs_{variable_names[2]}": (
-                ("lat", "lon"), hold_out_obs[2]),
-            f"hold_out_obs_{variable_names[3]}": (
-                ("lat", "lon"), hold_out_obs[3]),
+            f"hold_out_obs_{variable_names[0]}": (("lat", "lon"), hold_out_obs[0]),
+            f"hold_out_obs_{variable_names[1]}": (("lat", "lon"), hold_out_obs[1]),
+            f"hold_out_obs_{variable_names[2]}": (("lat", "lon"), hold_out_obs[2]),
+            f"hold_out_obs_{variable_names[3]}": (("lat", "lon"), hold_out_obs[3]),
             # f"hold_out_obs_{variable_names[4]}": (
             #   ("lat", "lon"), hold_out_obs[4]),
             f"inp_obs_for_eval_{variable_names[0]}": (
@@ -500,30 +471,20 @@ def save_output(
                 ("lat", "lon"),
                 inp_obs_for_eval[3],
             ),
-            f"rtma_{variable_names[0]}": (
-                ("lat", "lon"), field_target[0]),
-            f"rtma_{variable_names[1]}": (
-                ("lat", "lon"), field_target[1]),
-            f"rtma_{variable_names[2]}": (
-                ("lat", "lon"), field_target[2]),
-            f"rtma_{variable_names[3]}": (
-                ("lat", "lon"), field_target[3]),
+            f"rtma_{variable_names[0]}": (("lat", "lon"), field_target[0]),
+            f"rtma_{variable_names[1]}": (("lat", "lon"), field_target[1]),
+            f"rtma_{variable_names[2]}": (("lat", "lon"), field_target[2]),
+            f"rtma_{variable_names[3]}": (("lat", "lon"), field_target[3]),
             # f"rtma_{variable_names[4]}": (
             #   ("lat", "lon"), field_target[4]),
-            f"bg_hrrr_{variable_names[0]}": (
-                ("lat", "lon"), bg_hrrr[0]),
-            f"bg_hrrr_{variable_names[1]}": (
-                ("lat", "lon"), bg_hrrr[1]),
-            f"bg_hrrr_{variable_names[2]}": (
-                ("lat", "lon"), bg_hrrr[2]),
-            f"bg_hrrr_{variable_names[3]}": (
-                ("lat", "lon"), bg_hrrr[3]),
+            f"bg_hrrr_{variable_names[0]}": (("lat", "lon"), bg_hrrr[0]),
+            f"bg_hrrr_{variable_names[1]}": (("lat", "lon"), bg_hrrr[1]),
+            f"bg_hrrr_{variable_names[2]}": (("lat", "lon"), bg_hrrr[2]),
+            f"bg_hrrr_{variable_names[3]}": (("lat", "lon"), bg_hrrr[3]),
             # f"bg_hrrr_{variable_names[4]}": (
             #   ("lat", "lon"), bg_hrrr[4]),
-            "variable_names": (
-                ("variable_num"), variable_names),
-            "mask": (
-                ("lat", "lon"), mask[0]),
+            "variable_names": (("variable_num"), variable_names),
+            "mask": (("lat", "lon"), mask[0]),
         },
         coords={
             "lat": lat,
@@ -538,15 +499,9 @@ def save_output(
     ds.close()
 
 
-def read_sample_file_and_norm_input(
-    params,
-    file_path,
-    hold_out_obs_ratio=0.2
-):
-
+def read_sample_file_and_norm_input(params, file_path, hold_out_obs_ratio=0.2):
     # %% get statistic
-    stats_file = os.path.join(
-        params.data_path, f"stats.csv")
+    stats_file = os.path.join(params.data_path, f"stats.csv")
 
     stats = pd.read_csv(stats_file, index_col=0)
 
@@ -590,23 +545,21 @@ def read_sample_file_and_norm_input(
     )
 
     # topography (normed)
-    topo = np.array(ds[["z"]].to_array())[
-        :, :params.img_size_y, :params.img_size_x]
+    topo = np.array(ds[["z"]].to_array())[:, : params.img_size_y, : params.img_size_x]
 
     # satellite
-    inp_sate = np.array [params.inp_satelite_vars].to_array())[
-        :, -params.obs_time_window:, :params.img_size_y, :params.img_size_x
+    inp_sate = np.array(ds[params.inp_satelite_vars].to_array())[
+        :, -params.obs_time_window :, : params.img_size_y, : params.img_size_x
     ]
 
     # Observation (normed)
     obs = np.array(ds[params.inp_obs_vars].to_array())[
-        :, -params.obs_time_window:, :params.img_size_y, :params.img_size_x
+        :, -params.obs_time_window :, : params.img_size_y, : params.img_size_x
     ]
     # quality control
     obs[(obs <= -1) | (obs >= 1)] = 0
 
     if params.hold_out_obs:
-
         if params.seed != 0:
             np.random.seed(params.seed)
             logging.info(f"Using random seed {params.seed}")
@@ -665,48 +618,46 @@ def read_sample_file_and_norm_input(
     )
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", default=0, type=int)
-    parser.add_argument("--exp_dir", default="", type=str)
-    parser.add_argument("--test_data_path", default="", type=str)
-    parser.add_argument("--net_config", default="EncDec", type=str)
-    parser.add_argument("--hold_out_obs_ratio", type=float, default=0.2)
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--seed", default=0, type=int)
+#     parser.add_argument("--exp_dir", default="", type=str)
+#     parser.add_argument("--test_data_path", default="", type=str)
+#     parser.add_argument("--net_config", default="EncDec", type=str)
+#     parser.add_argument("--hold_out_obs_ratio", type=float, default=0.2)
 
-    args = parser.parse_args()
+#     args = parser.parse_args()
 
-    config_path = os.path.join(args.exp_dir, "config.yaml")
+#     config_path = os.path.join(args.exp_dir, "config.yaml")
 
-    params = YParams(config_path, args.net_config)
-    params["resuming"] = False
-    params["seed"] = args.seed
-    params["experiment_dir"] = args.exp_dir
-    params["test_data_path"] = args.test_data_path
-    params["best_checkpoint_path"] = os.path.join(
-        params["experiment_dir"], "training_checkpoints", "best_ckpt.tar"
-    )
+#     params = YParams(config_path, args.net_config)
+#     params["resuming"] = False
+#     params["seed"] = args.seed
+#     params["experiment_dir"] = args.exp_dir
+#     params["test_data_path"] = args.test_data_path
+#     params["best_checkpoint_path"] = os.path.join(
+#         params["experiment_dir"], "training_checkpoints", "best_ckpt.tar"
+#     )
 
-    # set up logging
-    log_to_file(
-        logger_name=None,
-        log_filename=os.path.join(params["experiment_dir"], "inference.log"),
-    )
-    params.log()
+#     # set up logging
+#     log_to_file(
+#         logger_name=None,
+#         log_filename=os.path.join(params["experiment_dir"], "inference.log"),
+#     )
+#     params.log()
 
-    # get data files and model
-    test_data_file_paths, inference_times, model = setup(params)
+#     # get data files and model
+#     test_data_file_paths, inference_times, model = setup(params)
 
-    target_variable = [var.split("_")[1] for var in params.field_tar_vars]
+#     target_variable = [var.split("_")[1] for var in params.field_tar_vars]
 
-    inference(
-        params,
-        target_variable,
-        test_data_file_paths,
-        inference_times,
-        args.hold_out_obs_ratio,
-        model,
-    )
+#     inference(
+#         params,
+#         target_variable,
+#         test_data_file_paths,
+#         inference_times,
+#         args.hold_out_obs_ratio,
+#         model,
+#     )
 
-    logging.info("Done")
-
-
+#     logging.info("Done")
